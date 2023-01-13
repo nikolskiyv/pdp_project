@@ -4,6 +4,9 @@
 
 #include "objects/Atom.h"
 #include "objects/Vector.h"
+#include "objects/Parameters.h"
+
+#include "calculation/heliocentric_lattice.cpp"
 
 using namespace std;
 
@@ -34,8 +37,6 @@ double energy(const std::vector<Atom> &heliocentric_lattice, double a0_param, in
             for (int dx = -1; dx < 2; dx++)
                 for (int dy = -1; dy < 2; dy++)
                     for (int dz = -1; dz < 2; dz++)
-
-
                         if (i != j || dx != 0 || dy != 0 || dz != 0) {
 
                             // условие периодичности?
@@ -66,7 +67,6 @@ double energy(const std::vector<Atom> &heliocentric_lattice, double a0_param, in
         }
         Eb = -sqrt(Eb);
         E += Er + Eb;
-
     }
     return E;
 
@@ -131,6 +131,7 @@ void params(double a0_param, double E_p, double &B, double &c11, double &c12, do
     double E_c12_minus = energy(Vect_c12_minus, a0_param, 3, d_c12_minus) / double(Vect_p.size());
     double E_c44_plus = energy(Vect_c44_plus, a0_param, 3, d_c44_plus) / double(Vect_p.size());
     double E_c44_minus = energy(Vect_c44_minus, a0_param, 3, d_c44_minus) / double(Vect_p.size());
+
     double d2_E_B = (E_B_plus - 2 * E_p + E_B_minus) / alpha2;
     double d2_E_c11 = (E_c11_plus - 2 * E_p + E_c11_minus) / alpha2;
     double d2_E_c12 = (E_c12_plus - 2 * E_p + E_c12_minus) / alpha2;
@@ -142,3 +143,18 @@ void params(double a0_param, double E_p, double &B, double &c11, double &c12, do
     c44 = (d2_E_c44 * const_p) / (2.0 * v0);
 }
 
+Parameters random_parameters(const Parameters& i_offset = Parameters()) {
+    /*
+     * Рандомизация значений параметров
+     * */
+    return {i_offset.r0 + (rand() % 1000) / 1000.0, // r0
+               i_offset.A0 + (rand() % 1000) / 1000.0, // A0
+               i_offset.A1 + (rand() % 1000) / 1000.0, // A1
+               i_offset.p + (rand() % 1000) / 100.0, // p
+               i_offset.q + (rand() % 1000) / 1000.0, // q
+               i_offset.ksi + (rand() % 1000) / 1000.0}; // ksi
+}
+
+void print_params(double B, double C11, double C12, double C44) {
+    cout << "B = " << B << ", C11 = " << C11 << ", C12 = " << C12 << ", C44 = " << C44 <<endl;
+}
