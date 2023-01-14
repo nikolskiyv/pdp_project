@@ -11,14 +11,11 @@
 using namespace std;
 
 class Atom {
-
 public:
-
     string name;
     double x, y, z;
 
-    Atom(double _x, double _y, double _z, string _name)
-            : x(_x), y(_y), z(_z), name(std::move(_name)) {}
+    Atom(double _x, double _y, double _z, string _name): x(_x), y(_y), z(_z), name(std::move(_name)) {}
 
 };
 

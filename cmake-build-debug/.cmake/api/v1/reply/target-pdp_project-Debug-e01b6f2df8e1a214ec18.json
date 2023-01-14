@@ -92,10 +92,7 @@
 			"name" : "Header Files",
 			"sourceIndexes" : 
 			[
-				1,
-				2,
-				3,
-				4
+				1
 			]
 		}
 	],
@@ -109,22 +106,7 @@
 		},
 		{
 			"backtrace" : 1,
-			"path" : "src/objects/Vector.h",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 1,
 			"path" : "src/objects/Atom.h",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 1,
-			"path" : "src/objects/Parameters.h",
-			"sourceGroupIndex" : 1
-		},
-		{
-			"backtrace" : 1,
-			"path" : "src/objects/MetalValues.h",
 			"sourceGroupIndex" : 1
 		}
 	],
