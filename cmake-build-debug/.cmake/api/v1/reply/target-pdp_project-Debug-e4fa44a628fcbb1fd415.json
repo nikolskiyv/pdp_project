@@ -106,7 +106,7 @@
 		},
 		{
 			"backtrace" : 1,
-			"path" : "src/objects/Atom.h",
+			"path" : "src/Atom.h",
 			"sourceGroupIndex" : 1
 		}
 	],
