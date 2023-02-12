@@ -21,14 +21,14 @@ const double  MATR[9] = {1, 0, 0,
 
 double A1 = 0, A0 = 0.1028, ksi = 1.178, p = 10.928, q = 3.139, r0 = 2.889, a_0 = 4.085;
 
-void update_parameters(double p_[7]) {
-    A1 = p_[0];
-    A0 = p_[1];
-    ksi = p_[2] ;
-    p = p_[3] ;
-    q = p_[4] ;
-    r0 = p_[5] ;
-    a_0 = p_[6];
+void update_parameters(const double new_parameters[7]) {
+    A1 = new_parameters[0];
+    A0 = new_parameters[1];
+    ksi = new_parameters[2];
+    p = new_parameters[3];
+    q = new_parameters[4];
+    r0 = new_parameters[5];
+    a_0 = new_parameters[6];
 }
 
 void printParams(double p_[7]) {

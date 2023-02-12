@@ -140,7 +140,6 @@ double error(Vector a, double E_coh,   double &B, double &C11, double &C12, doub
 
     init_heliocentric_lattice(Vect, "Ag", a.vec[6]);
     update_parameters(a.vec);
-    //printParams(a.vec);
 
     double E_coh_f, B_f, C11_f, C12_f, C44_f;
 
@@ -183,9 +182,7 @@ multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11
         x_h = simplex.rbegin()->second;
         x_l = simplex.begin()->second;
 
-        // cout << "BEST ERROR: " << f_l << endl;
-        // cout << "WORST ERROR: " << f_h << endl;
-        // printParams(x_h.vec);
+        // cout << "f_l: " << f_l << endl;
 
         Vector x_c;
 
