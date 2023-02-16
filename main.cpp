@@ -47,22 +47,21 @@ int main() {
     printParams(simplex.begin()->second.vec);
     update_parameters(simplex.begin()->second.vec);
 
-    double E_coh_f, B_f, C11_f, C12_f, C44_f;
+    double E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual;
 
     vector<Atom> Vect1;
     double a0_f;
     a0_f = simplex.begin()->second.vec[6];
 
-    init_heliocentric_lattice(Vect1, "Ag", a0_f);
+    init_heliocentric_lattice(Vect1, "Ni", a0_f);
 
-    E_coh_f = calculate_energy(Vect1, a0_f, MATR) / double(Vect1.size());
-    calculate_characteristics(a0_f, E_coh_f, B_f, C11_f, C12_f, C44_f);
+    E_coh_actual = calculate_energy(Vect1, a0_f, MATR) / double(Vect1.size());
+    calculate_characteristics(
+            a0_f, E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual);
 
-    cout << "E_coh_f: " << E_coh_f << endl;
-    cout << "B_f: " << B_f << endl;
-    cout << "C11_f: " << C11_f << endl;
-    cout << "C12_f: " << C12_f << endl;
-    cout << "C44_f: " << C44_f << endl;
+    cout << "E_coh_actual = " << E_coh_actual << endl;
+    cout << "B_actual = " << B_actual << ", C11_actual = " << C11_actual << ", C12_actual = " << C12_actual
+        << ", C44_actual = " << C44_actual << endl;
 
     return 0;
 }

@@ -1,6 +1,7 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <functional>
 
 #include "Atom.h"
 #include "consts.h"
@@ -9,64 +10,68 @@
 
 using namespace std;
 
-double calculate_energy(const vector<Atom> &heliocentric_lattice, double a0_param, const double trans_matr[9]) {
+double calculate_energy(const vector<Atom>& heliocentric_lattice, double a0_param, const double trans_matr[9]) {
+    double E = 0.0;
+    double cutoff = 1.7 * a0_param;
+
     /*
-     *
-     */
-
-    double E = 0;
-
-    // heliocentric_lattice[i] и heliocentric_lattice[j] тут i-й и j-й атомы соответственно
-    // Перебираем все пары, исключая одинаковые атомы в паре (i != j)
-// #pragma omp parallel for reduction(+: E)
+     * Для распараллеливания этого кода используется директива #pragma omp parallel for перед внешним циклом for,
+     * который перебирает все пары атомов.
+     * Эта директива позволяет распараллелить цикл между несколькими потоками.
+     * При выполнении этого цикла каждый поток получает набор итераций цикла, которые должен выполнить.
+     * Потоки работают независимо друг от друга и параллельно вычисляют Er и Eb для каждой пары атомов.
+     * Когда поток заканчивает свою работу, значение E для этого потока добавляется в общую сумму E,
+     * используя #pragma omp reduction.
+     * Это позволяет предотвратить гонку за ресурсами, когда несколько потоков пытаются изменять одну и ту же
+     * переменную E одновременно.
+     **/
+#pragma omp parallel num_threads(4)
+#pragma omp parallel for reduction(+:E)
     for (int i = 0; i < heliocentric_lattice.size(); i++) {
-        double Er = 0, Eb = 0;
-        double cutoff = 1.7 * a0_param;  // Радиус, в который должны попасть атомы, энергию которых мы считаем
+        double Er = 0.0, Eb = 0.0;
+        const auto& atom_i = heliocentric_lattice[i];
 
-// #pragma omp parallel for reduction(+: Er, Eb)
         for (int j = 0; j < heliocentric_lattice.size(); j++) {
+            if (i == j) {
+                continue;
+            }
+            const auto& atom_j = heliocentric_lattice[j];
+            double dx = atom_j.x - atom_i.x;
+            double dy = atom_j.y - atom_i.y;
+            double dz = atom_j.z - atom_i.z;
 
-            // считаем в трехмерном пространстве
-            for (int dx = -1; dx < 2; dx++)
-                for (int dy = -1; dy < 2; dy++)
-                    for (int dz = -1; dz < 2; dz++)
-                        if (i != j || dx != 0 || dy != 0 || dz != 0) {
-
-                            // Условие периодичности
-                            double tmp_x = heliocentric_lattice[j].x + a0_param * CONST_D * dx;
-                            double tmp_y = heliocentric_lattice[j].y + a0_param * CONST_D * dy;
-                            double tmp_z = heliocentric_lattice[j].z + a0_param * CONST_D * dz;
-
-                            tmp_x = tmp_x * trans_matr[0] + tmp_y * trans_matr[1] + tmp_z * trans_matr[2];
-                            tmp_y = tmp_x * trans_matr[3] + tmp_y * trans_matr[4] + tmp_z * trans_matr[5];
-                            tmp_z = tmp_x * trans_matr[6] + tmp_y * trans_matr[7] + tmp_z * trans_matr[8];
-                            tmp_x -= heliocentric_lattice[i].x * trans_matr[0] + heliocentric_lattice[i].y * trans_matr[1]
-                                     + heliocentric_lattice[i].z * trans_matr[2];
-                            tmp_y -= heliocentric_lattice[i].x * trans_matr[3] + heliocentric_lattice[i].y * trans_matr[4]
-                                     + heliocentric_lattice[i].z * trans_matr[5];
-                            tmp_z -= heliocentric_lattice[i].x * trans_matr[6] + heliocentric_lattice[i].y * trans_matr[7]
-                                     + heliocentric_lattice[i].z * trans_matr[8];
-
-                            // Считаем расстояние между i и j атомами
-                            double distance = sqrt(tmp_x * tmp_x + tmp_y * tmp_y + tmp_z * tmp_z);
-                            if (distance < cutoff) {
-                                Er = Er + (A1 * (distance - r0) + A0) * exp(-p * (distance / r0 - 1));
-                                Eb = Eb + ksi * ksi * exp(-2 * q * (distance / r0 - 1));
-                            }
+            for (int k = -1; k <= 1; k++) {
+                for (int l = -1; l <= 1; l++) {
+                    for (int m = -1; m <= 1; m++) {
+                        double x = dx + a0_param * CONST_D * k;
+                        double y = dy + a0_param * CONST_D * l;
+                        double z = dz + a0_param * CONST_D * m;
+                        double tmp_x = x * trans_matr[0] + y * trans_matr[1] + z * trans_matr[2];
+                        double tmp_y = x * trans_matr[3] + y * trans_matr[4] + z * trans_matr[5];
+                        double tmp_z = x * trans_matr[6] + y * trans_matr[7] + z * trans_matr[8];
+                        double distance = sqrt(tmp_x * tmp_x + tmp_y * tmp_y + tmp_z * tmp_z);
+                        if (distance < cutoff) {
+                            Er += (A1 * (distance - r0) + A0) * exp(-p * (distance / r0 - 1));
+                            Eb += ksi * ksi * exp(-2 * q * (distance / r0 - 1));
                         }
+                    }
+                }
+            }
         }
-        Eb = -sqrt(Eb);
-        E += Er + Eb;
+
+        E += Er - sqrt(Eb);
     }
+
     return E;
 }
+
 
 void calculate_characteristics(double a0_param, double E_coh, double &B, double &C11, double &C12, double &C44) {
     /*
      * Функция подбора модуля векторного растяжения B и констант упругости C11/C12/C44
      **/
 
-    double v0 = a0_param * a0_param * a0_param / 4;
+    double v0 = a0_param * a0_param * a0_param / 4;  // равновесный объем
 
     double D_B_pos[9] = {1 + alpha_1, 0, 0,
                          0, 1 + alpha_1, 0,
@@ -135,106 +140,117 @@ void calculate_characteristics(double a0_param, double E_coh, double &B, double 
     C44 = (d2_E_C44 * const_p) / (2.0 * v0);
 }
 
-double error(Vector a, double E_coh,   double &B, double &C11, double &C12, double &C44) {
-    vector<Atom> Vect;
+double error(Vector a, double E_coh_target, double &B_target, double &C11_target, double &C12_target, double &C44_target) {
+    vector<Atom> atoms;
 
-    init_heliocentric_lattice(Vect, "Ag", a.vec[6]);
+    init_heliocentric_lattice(atoms, "Ni", a.vec[6]);
     update_parameters(a.vec);
 
-    double E_coh_f, B_f, C11_f, C12_f, C44_f;
+    double E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual;
 
-    E_coh_f = calculate_energy(Vect, a.vec[6], MATR) / double(Vect.size());
+    // Считаем энергию, которую имеем на данный момент
+    E_coh_actual = calculate_energy(atoms, a.vec[6], MATR) / double(atoms.size());
 
-    calculate_characteristics(a.vec[6], E_coh_f, B_f, C11_f, C12_f, C44_f);
+    // Находим характеристики, rjnjhst имеем на данный момент
+    calculate_characteristics(a.vec[6], E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual);
 
-    double err =
-            (E_coh - E_coh_f) * (E_coh - E_coh_f) +
-            (B - B_f) * (B - B_f) +
-            (C11 - C11_f) * (C11 - C11_f) +
-            (C12 - C12_f) * (C12 - C12_f) +
-            (C44 - C44_f) * (C44 - C44_f);
+    // Считаем ошибку как
+    double error = (E_coh_target - E_coh_actual) * (E_coh_target - E_coh_actual) +
+                   (B_target - B_actual) * (B_target - B_actual) +
+                   (C11_target - C11_actual) * (C11_target - C11_actual) +
+                   (C12_target - C12_actual) * (C12_target - C12_actual) +
+                   (C44_target - C44_actual) * (C44_target - C44_actual);
 
-    return err;
+    return error;
 }
+
 
 multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11, double &c12, double &c44) {
     multimap<double, Vector> simplex;
-    double f_h;  // Наибольшее значение целевой функции
-    double f_g;  // Второе по величине значение целевой функции
-    double f_l;  // Наименьшее значение целевой функции
+    double f_h, f_g, f_l;
     Vector x_h, x_l;
 
-    for(int atom_idx=0; atom_idx<8; atom_idx++) {
+    // Инициализация метода
+    for (int atom_idx = 0; atom_idx < 8; ++atom_idx) {
         Vector tmp(1);
-        if(atom_idx != 7) {
-            for(double & i : tmp.vec) {
+        if (atom_idx != 7) {
+            for (auto &i: tmp.vec) {
                 i = rand() % 10000 / 1000.0;
             }
         }
-        simplex.insert({error(tmp, E_coh, B, c11, c12, c44), tmp});
+        simplex.emplace(error(tmp, E_coh, B, c11, c12, c44), tmp);
     }
 
-    while(simplex.begin()->first > 10e-10) {
-        f_h = simplex.rbegin()->first;
-        f_g = (++simplex.rbegin())->first;
-        f_l = simplex.begin()->first;
-
+    while (simplex.begin()->first > 10e-10) {  // Проверка сходимости. Смотрим на падение дисперсии ниже некоторого порога
+        f_h = simplex.rbegin()->first;  // Наибольшее значение целевой функции
+        f_g = (++simplex.rbegin())->first;  // Второе по величине значение целевой функции
+        f_l = simplex.begin()->first;  // Наименьшее значение целевой функции
         x_h = simplex.rbegin()->second;
         x_l = simplex.begin()->second;
 
-        // cout << "f_l: " << f_l << endl;
-
         Vector x_c;
 
-        for(auto it = ++simplex.rbegin(); it != simplex.rend(); ++it) {
+        // Находим центр тяжести
+        for (auto it = ++simplex.rbegin(); it != simplex.rend(); ++it) {
             x_c += it->second;
         }
         x_c /= 7;
+
+        // Отразим точку x_h относительно точки x_c с коэффициентом alpha
         Vector x_r = (x_c * (1 + alpha_coefficient) - x_h * alpha_coefficient).strict();
-        double f_r = error(x_r, E_coh, B, c11, c12, c44);
+        double f_r = error(x_r, E_coh, B, c11, c12, c44);  // Значение ЦФ в точке x_r
 
         if (f_r < f_l) {
+            // Направление выбрано удачно, пробуем увеличить шаг
             Vector x_e = (x_c * (1 - gamma_coefficient) + x_r * gamma_coefficient).strict();
             double f_e = error(x_e, E_coh, B, c11, c12, c44);
 
             simplex.erase(--simplex.end());
             if (f_e < f_r) {
+                // Из точек x_r и x_e выбираем наилучшую и заменяем ею x_h
                 simplex.insert({f_e, x_e});
             } else {
                 simplex.insert({f_r, x_r});
             }
         } else if (f_r < f_g) {
+            // Новая точка улучшает ответ, заменим ею x_h
             simplex.erase(--simplex.end());
             simplex.insert({f_r, x_r});
         } else if (f_r < f_h) {
+            // Новая точка улучшает ответ, но слабо, заменим ею x_h и проведем операцию сжатия
             simplex.erase(--simplex.end());
             simplex.insert({f_r, x_r});
 
             Vector x_s = (x_c * (1 - beta_coefficient) + x_h * beta_coefficient).strict();
             double f_s = error(x_s, E_coh, B, c11, c12, c44);
             if (f_s < f_h) {
+                // Заменяем вершину x_h точкой x_s
                 simplex.erase(--simplex.end());
                 simplex.insert({f_s, x_s});
             } else {
+                // Сжимаем весь симплекс к точке с наименьшим значением x_i
                 multimap<double, Vector> tmp(simplex);
                 simplex.clear();
 
-                for (auto& x_i : tmp) {
+                for (auto &x_i: tmp) {
                     Vector new_vec = x_l + (x_i.second - x_l) * sigma_coefficient;
                     simplex.insert({error(new_vec, E_coh, B, c11, c12, c44), new_vec});
                 }
             }
         } else {
+            // Новая точка не улучшает ответ, проведем операцию сжатия
             Vector x_s = x_c * (1 - beta_coefficient) + x_h * beta_coefficient;
             double f_s = error(x_s, E_coh, B, c11, c12, c44);
             if (f_s < f_h) {
+                // Заменяем вершину x_h точкой x_s
                 simplex.erase(--simplex.end());
                 simplex.insert({f_s, x_s});
             } else {
+                // Сжимаем весь симплекс к точке с наименьшим значением x_i
                 multimap<double, Vector> tmp(simplex);
                 simplex.clear();
 
-                for (auto& x_i : tmp) {
+                for (auto &x_i: tmp) {
                     Vector new_vec = x_l + (x_i.second - x_l) * sigma_coefficient;
                     simplex.insert({error(new_vec, E_coh, B, c11, c12, c44), new_vec});
                 }
