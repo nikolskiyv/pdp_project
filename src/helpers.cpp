@@ -25,7 +25,6 @@ double calculate_energy(const vector<Atom>& heliocentric_lattice, double a0_para
      * Это позволяет предотвратить гонку за ресурсами, когда несколько потоков пытаются изменять одну и ту же
      * переменную E одновременно.
      **/
-#pragma omp parallel num_threads(4)
 #pragma omp parallel for reduction(+:E)
     for (int i = 0; i < heliocentric_lattice.size(); i++) {
         double Er = 0.0, Eb = 0.0;
@@ -151,10 +150,10 @@ double error(Vector a, double E_coh_target, double &B_target, double &C11_target
     // Считаем энергию, которую имеем на данный момент
     E_coh_actual = calculate_energy(atoms, a.vec[6], MATR) / double(atoms.size());
 
-    // Находим характеристики, rjnjhst имеем на данный момент
+    // Находим характеристики, которые имеем на данный момент
     calculate_characteristics(a.vec[6], E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual);
 
-    // Считаем ошибку как
+    // Считаем ошибку как сумму квадратов отклонений
     double error = (E_coh_target - E_coh_actual) * (E_coh_target - E_coh_actual) +
                    (B_target - B_actual) * (B_target - B_actual) +
                    (C11_target - C11_actual) * (C11_target - C11_actual) +
