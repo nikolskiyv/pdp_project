@@ -12,7 +12,7 @@ using namespace std;
 
 double calculate_energy(const vector<Atom>& heliocentric_lattice, double a0_param, const double trans_matr[9]) {
     double E = 0.0;
-    double cutoff = 1.7 * a0_param;
+    double cutoff = 1.7 * a0_param;  // Радиус, в который должны попасть атомы, энергию которых мы считаем
 
     /*
      * Для распараллеливания этого кода используется директива #pragma omp parallel for перед внешним циклом for,
@@ -25,7 +25,10 @@ double calculate_energy(const vector<Atom>& heliocentric_lattice, double a0_para
      * Это позволяет предотвратить гонку за ресурсами, когда несколько потоков пытаются изменять одну и ту же
      * переменную E одновременно.
      **/
-#pragma omp parallel for reduction(+:E)
+
+#pragma omp parallel for num_threads(4) reduction(+:E)
+    // heliocentric_lattice[i] и heliocentric_lattice[j] тут i-й и j-й атомы соответственно
+    // Перебираем все пары, исключая одинаковые атомы в паре (i != j)
     for (int i = 0; i < heliocentric_lattice.size(); i++) {
         double Er = 0.0, Eb = 0.0;
         const auto& atom_i = heliocentric_lattice[i];
@@ -45,9 +48,13 @@ double calculate_energy(const vector<Atom>& heliocentric_lattice, double a0_para
                         double x = dx + a0_param * CONST_D * k;
                         double y = dy + a0_param * CONST_D * l;
                         double z = dz + a0_param * CONST_D * m;
+
+                        // Условие периодичности
                         double tmp_x = x * trans_matr[0] + y * trans_matr[1] + z * trans_matr[2];
                         double tmp_y = x * trans_matr[3] + y * trans_matr[4] + z * trans_matr[5];
                         double tmp_z = x * trans_matr[6] + y * trans_matr[7] + z * trans_matr[8];
+
+                        // Считаем расстояние между i и j атомами
                         double distance = sqrt(tmp_x * tmp_x + tmp_y * tmp_y + tmp_z * tmp_z);
                         if (distance < cutoff) {
                             Er += (A1 * (distance - r0) + A0) * exp(-p * (distance / r0 - 1));
@@ -70,8 +77,12 @@ void calculate_characteristics(double a0_param, double E_coh, double &B, double 
      * Функция подбора модуля векторного растяжения B и констант упругости C11/C12/C44
      **/
 
-    double v0 = a0_param * a0_param * a0_param / 4;  // равновесный объем
+    double v0 = a0_param * a0_param * a0_param;  // равновесный объем
+    double conv_coefficient = 1.602;
 
+    // Для вычисления констант упругости необходимо посчитать вторую производную энергии по деформации
+
+    // Ниже - матрицы деформации
     double D_B_pos[9] = {1 + alpha_1, 0, 0,
                          0, 1 + alpha_1, 0,
                          0, 0, 1 + alpha_1 };
@@ -133,10 +144,10 @@ void calculate_characteristics(double a0_param, double E_coh, double &B, double 
     double d2_E_C12 = (E_C12_pos - 2 * E_coh + E_C12_neg) / alpha_2;
     double d2_E_C44 = (E_C44_pos - 2 * E_coh + E_C44_neg) / alpha_2;
 
-    B = (d2_E_B * 2 * const_p) / (9.0 * v0);
-    C11 = ((d2_E_C11 + d2_E_C12) * const_p) / (2.0 * v0);
-    C12 = ((d2_E_C11 - d2_E_C12) * const_p) / (2.0 * v0);
-    C44 = (d2_E_C44 * const_p) / (2.0 * v0);
+    B = 4 * d2_E_B * conv_coefficient / (9.0 * v0);
+    C11 = (d2_E_C11 + d2_E_C12) * conv_coefficient / v0;
+    C12 = (d2_E_C11 - d2_E_C12) * conv_coefficient / v0;
+    C44 = d2_E_C44 * conv_coefficient / v0;
 }
 
 double error(Vector a, double E_coh_target, double &B_target, double &C11_target, double &C12_target, double &C44_target) {
@@ -184,6 +195,7 @@ multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11
         f_h = simplex.rbegin()->first;  // Наибольшее значение целевой функции
         f_g = (++simplex.rbegin())->first;  // Второе по величине значение целевой функции
         f_l = simplex.begin()->first;  // Наименьшее значение целевой функции
+
         x_h = simplex.rbegin()->second;
         x_l = simplex.begin()->second;
 

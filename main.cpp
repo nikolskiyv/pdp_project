@@ -9,6 +9,8 @@
 using namespace std;
 
 int main() {
+    clock_t tStart = clock();
+
     cout << endl << endl;
     cout << "#################################################################################################" << endl;
     cout << "------------------------------------[ЧАСТЬ 1. ПРЯМАЯ ЗАДАЧА.]------------------------------------" << endl;
@@ -70,6 +72,8 @@ int main() {
     cout << "B_actual = " << B_actual << ", C11_actual = " << C11_actual << ", C12_actual = " << C12_actual
         << ", C44_actual = " << C44_actual << endl;
     cout << "-------------------------------------------------------------------------------------------------" << endl;
+
+    printf("Execution time: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 
     return 0;
 }

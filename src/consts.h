@@ -5,7 +5,6 @@
 #ifndef PDP_PROJECT_CONSTS_H
 #define PDP_PROJECT_CONSTS_H
 
-double const_p = 0.8018993929636421;
 double alpha_1 = 0.001;
 double alpha_2 = 0.000001;
 
@@ -14,7 +13,7 @@ double const beta_coefficient = 0.5;  // Коэффициент сжатия
 double const gamma_coefficient = 2;  // Коэффициент растяжения
 double const sigma_coefficient = 0.5;  // Коэффициент глобального сжатия
 
-const int CONST_D = 3;
+const int CONST_D = 3;  // В базисе 4 атоме, в большой решетке 27. Всего 108. Итерируемся по
 const double  MATR[9] = {1, 0, 0,
                          0, 1, 0,
                          0, 0, 1 };
