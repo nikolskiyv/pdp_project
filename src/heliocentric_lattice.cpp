@@ -7,13 +7,11 @@
 
 using namespace std;
 
-#include <vector>
-#include <string>
 #include "Atom.h"
 
 using namespace std;
 
-void init_heliocentric_lattice(vector<Atom> &atoms, const string& name, double a0_param) {
+void init_heliocentric_lattice(vector<Atom> &atoms, double a0_param) {
     /*
      * Функция расставляет атомы в узлах кристаллической решетки
      */
@@ -30,16 +28,16 @@ void init_heliocentric_lattice(vector<Atom> &atoms, const string& name, double a
                 // в позициях (0, 0 ,0), (1/2 * a, 1/2 * a, 0), (1/2 * a, 0, 1/2 * a) и (0, 1/2 * a, 1/2 * a)
                 // Таким образом один атом ячейки находится в начале координат и три
                 // атома в серединах сторон единичного куба.
-                Atom atom1(i * a0_param, j * a0_param, k * a0_param, name);
+                Atom atom1(i * a0_param, j * a0_param, k * a0_param);
                 atoms.push_back(atom1);
 
-                Atom atom2(i * a0_param, (0.5 + j) * a0_param, (0.5 + k) * a0_param, name);
+                Atom atom2(i * a0_param, (0.5 + j) * a0_param, (0.5 + k) * a0_param);
                 atoms.push_back(atom2);
 
-                Atom atom3((0.5 + i) * a0_param, (0.5 + j) * a0_param, k * a0_param, name);
+                Atom atom3((0.5 + i) * a0_param, (0.5 + j) * a0_param, k * a0_param);
                 atoms.push_back(atom3);
 
-                Atom atom4((0.5 + i) * a0_param, j * a0_param, (0.5 + k) * a0_param, name);
+                Atom atom4((0.5 + i) * a0_param, j * a0_param, (0.5 + k) * a0_param);
                 atoms.push_back(atom4);
             }
         }

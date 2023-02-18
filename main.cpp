@@ -26,10 +26,25 @@ int main() {
     vector<Atom> heliocentric_lattice;
 
     // Задаем решетку из 3 атомов в кристаллической решетке (кубик)
-    init_heliocentric_lattice(heliocentric_lattice, "Ni", a_0);
+    init_heliocentric_lattice(heliocentric_lattice, a_0);
 
     // Находим когезионную энергию системы
-    E_coh = calculate_energy(heliocentric_lattice, a_0, MATR) / double(heliocentric_lattice.size());
+    E_coh = calculate_full_energy(heliocentric_lattice, a_0, MATR) / double(heliocentric_lattice.size());
+/*
+ * Отрисовка графика
+ *
+    for (int a0 = 30; a0 < 100; a0++)
+    {
+        double a0_iter = a0 / 10.0;
+
+        heliocentric_lattice.clear();
+        init_heliocentric_lattice(heliocentric_lattice, a0_iter);
+        E_coh = calculate_sol_energy(heliocentric_lattice, a0_iter, MATR);
+        cout << a0_iter << " " << E_coh << endl;
+    }
+
+    cout << "ECOH" << E_coh << endl;
+*/
 
     // Поиск характеристик
     double B, c11, c12, c44;
@@ -46,32 +61,63 @@ int main() {
     cout << "#################################################################################################" << endl;
     // Постановка: пусть даны характеристики материала, необходимо найти набор параметров, который позволит их получить.
 
-    multimap<double, Vector> simplex;
-
-    cout << "Подобранные параметры потенциала: ";
-    simplex = nelder_mead_method(E_coh, B, c11, c12, c44);
     cout << endl;
 
-    printParams(simplex.begin()->second.vec);
-    update_parameters(simplex.begin()->second.vec);
+    cout << "----------------------------------------------[Ag-Ag]-----------------------------------------------" << endl;
+    multimap<double, Vector> simplexBB;
+
+    simplexBB = nelder_mead_method(E_coh, B, c11, c12, c44, '1');
+
+    printParams(simplexBB.begin()->second.vec);
+    update_parameters(simplexBB.begin()->second.vec);
 
     double E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual;
 
     vector<Atom> Vect1;
     double a0_f;
-    a0_f = simplex.begin()->second.vec[6];
+    a0_f = simplexBB.begin()->second.vec[6];
 
-    init_heliocentric_lattice(Vect1, "Ni", a0_f);
+    init_heliocentric_lattice(Vect1, a0_f);
 
-    E_coh_actual = calculate_energy(Vect1, a0_f, MATR) / double(Vect1.size());
+    E_coh_actual = calculate_full_energy(Vect1, a0_f, MATR) / double(Vect1.size());
     calculate_characteristics(
             a0_f, E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual);
 
-    cout << "----------------------------------------------[Ag]-----------------------------------------------" << endl;
     cout << "E_coh_actual = " << E_coh_actual << endl;
     cout << "B_actual = " << B_actual << ", C11_actual = " << C11_actual << ", C12_actual = " << C12_actual
         << ", C44_actual = " << C44_actual << endl;
     cout << "-------------------------------------------------------------------------------------------------" << endl;
+
+    cout << endl;
+
+    cout << "----------------------------------------------[Ag-Ni]--------------------------------------------" << endl;
+
+    multimap<double, Vector> simplexAB;
+
+    B = B_true;
+    c11 = C11_true;
+    c12 = C12_true;
+    c44 = C44_true;
+
+    simplexAB = nelder_mead_method(E_sol_true, B, c11, c12, c44, '2');
+    cout << endl;
+
+    printParams(simplexAB.begin()->second.vec);
+    update_parameters(simplexAB.begin()->second.vec);
+
+    vector<Atom> Vect1_AB;
+    double a0_f_AB;
+    a0_f_AB = simplexAB.begin()->second.vec[6];
+
+    init_heliocentric_lattice(Vect1_AB, a0_f_AB);
+
+    double E_sol_actual = calculate_sol_energy(Vect1_AB, a0_f_AB, MATR);
+
+    cout << "E_sol_actual = " << E_sol_actual << endl;
+
+    cout << "-------------------------------------------------------------------------------------------------" << endl;
+
+    cout << endl;
 
     printf("Execution time: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 

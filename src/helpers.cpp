@@ -10,7 +10,10 @@
 
 using namespace std;
 
-double calculate_energy(const vector<Atom>& heliocentric_lattice, double a0_param, const double trans_matr[9]) {
+
+// ---- Функции вычисления энергий ----
+
+double calculate_full_energy(const vector<Atom>& heliocentric_lattice, double a0_param, const double trans_matr[9]) {
     double E = 0.0;
     double cutoff = 1.7 * a0_param;  // Радиус, в который должны попасть атомы, энергию которых мы считаем
 
@@ -71,14 +74,70 @@ double calculate_energy(const vector<Atom>& heliocentric_lattice, double a0_para
     return E;
 }
 
+double calculate_sol_energy(const vector<Atom>& heliocentric_lattice, double a0_param, const double trans_matr[9]) {
+    double E = 0.0;
+    double cutoff = 1.7 * a0_param;  // Радиус, в который должны попасть атомы, энергию которых мы считаем
 
-void calculate_characteristics(double a0_param, double E_coh, double &B, double &C11, double &C12, double &C44) {
+#pragma omp parallel for num_threads(4) reduction(+:E)
+    // heliocentric_lattice[i] и heliocentric_lattice[j] тут i-й и j-й атомы соответственно
+    // Перебираем все пары, исключая одинаковые атомы в паре (i != j)
+    for (int i = 0; i < heliocentric_lattice.size(); i++) {
+        double Er = 0.0, Eb = 0.0;
+        const auto& atom_i = heliocentric_lattice[i];
+
+        for (int j = 0; j < heliocentric_lattice.size(); j++) {
+            if (i == j) {
+                continue;
+            }
+            const auto& atom_j = heliocentric_lattice[j];
+            double dx = atom_j.x - atom_i.x;
+            double dy = atom_j.y - atom_i.y;
+            double dz = atom_j.z - atom_i.z;
+
+            for (int k = -1; k <= 1; k++) {
+                for (int l = -1; l <= 1; l++) {
+                    for (int m = -1; m <= 1; m++) {
+                        double x = dx + a0_param * CONST_D * k;
+                        double y = dy + a0_param * CONST_D * l;
+                        double z = dz + a0_param * CONST_D * m;
+
+                        // Условие периодичности
+                        double tmp_x = x * trans_matr[0] + y * trans_matr[1] + z * trans_matr[2];
+                        double tmp_y = x * trans_matr[3] + y * trans_matr[4] + z * trans_matr[5];
+                        double tmp_z = x * trans_matr[6] + y * trans_matr[7] + z * trans_matr[8];
+
+                        // Считаем расстояние между i и j атомами
+                        double distance = sqrt(tmp_x * tmp_x + tmp_y * tmp_y + tmp_z * tmp_z);
+                        if (distance < cutoff) {
+                            if (atom_i.isDim || atom_j.isDim) {
+                                Er += (A1 * (distance - r0) / r0 + A0) * exp(-p * (distance / r0 - 1));
+                                Eb += ksi * ksi * exp(-2 * q * (distance / r0 - 1));
+                            } else {
+                                Er += A0 * exp(-p * (distance / r0 - 1));
+                                Eb += pow(ksi, 2) * exp(-2 * q * (distance / r0 - 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        E += Er - sqrt(Eb);
+    }
+
+    return E;
+}
+
+
+// ---- Вычисление характеристик ----
+
+void calculate_characteristics(double a0_param, double E, double &B, double &C11, double &C12, double &C44) {
     /*
      * Функция подбора модуля векторного растяжения B и констант упругости C11/C12/C44
      **/
 
-    double v0 = a0_param * a0_param * a0_param;  // равновесный объем
-    double conv_coefficient = 1.602;
+    double v0 = a0_param * a0_param * a0_param;  // Равновесный объем
+    double conv_coefficient = 1.602;  // Коэффициент приведения СС
 
     // Для вычисления констант упругости необходимо посчитать вторую производную энергии по деформации
 
@@ -119,30 +178,30 @@ void calculate_characteristics(double a0_param, double E_coh, double &B, double 
         atoms_C44_pos, atoms_C44_neg;
 
 
-    init_heliocentric_lattice(atoms_p, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_B_pos, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_B_neg, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_C11_pos, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_C11_neg, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_c12_pos, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_C12_neg, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_C44_pos, "Ni", a0_param);
-    init_heliocentric_lattice(atoms_C44_neg, "Ni", a0_param);
+    init_heliocentric_lattice(atoms_p, a0_param);
+    init_heliocentric_lattice(atoms_B_pos, a0_param);
+    init_heliocentric_lattice(atoms_B_neg, a0_param);
+    init_heliocentric_lattice(atoms_C11_pos, a0_param);
+    init_heliocentric_lattice(atoms_C11_neg, a0_param);
+    init_heliocentric_lattice(atoms_c12_pos, a0_param);
+    init_heliocentric_lattice(atoms_C12_neg, a0_param);
+    init_heliocentric_lattice(atoms_C44_pos, a0_param);
+    init_heliocentric_lattice(atoms_C44_neg, a0_param);
 
 
-    double E_B_pos = calculate_energy(atoms_B_pos, a0_param, D_B_pos) / double(atoms_p.size());
-    double E_B_neg = calculate_energy(atoms_B_neg, a0_param, D_B_neg) / double(atoms_p.size());
-    double E_C11_pos = calculate_energy(atoms_C11_pos, a0_param, D_C11_pos) / double(atoms_p.size());
-    double E_C11_neg = calculate_energy(atoms_C11_neg, a0_param, D_C11_neg) / double(atoms_p.size());
-    double E_C12_pos = calculate_energy(atoms_c12_pos, a0_param, D_C12_pos) / double(atoms_p.size());
-    double E_C12_neg = calculate_energy(atoms_C12_neg, a0_param, D_C12_neg) / double(atoms_p.size());
-    double E_C44_pos = calculate_energy(atoms_C44_pos, a0_param, D_C44_pos) / double(atoms_p.size());
-    double E_C44_neg = calculate_energy(atoms_C44_neg, a0_param, D_C44_neg) / double(atoms_p.size());
+    double E_B_pos = calculate_full_energy(atoms_B_pos, a0_param, D_B_pos) / double(atoms_p.size());
+    double E_B_neg = calculate_full_energy(atoms_B_neg, a0_param, D_B_neg) / double(atoms_p.size());
+    double E_C11_pos = calculate_full_energy(atoms_C11_pos, a0_param, D_C11_pos) / double(atoms_p.size());
+    double E_C11_neg = calculate_full_energy(atoms_C11_neg, a0_param, D_C11_neg) / double(atoms_p.size());
+    double E_C12_pos = calculate_full_energy(atoms_c12_pos, a0_param, D_C12_pos) / double(atoms_p.size());
+    double E_C12_neg = calculate_full_energy(atoms_C12_neg, a0_param, D_C12_neg) / double(atoms_p.size());
+    double E_C44_pos = calculate_full_energy(atoms_C44_pos, a0_param, D_C44_pos) / double(atoms_p.size());
+    double E_C44_neg = calculate_full_energy(atoms_C44_neg, a0_param, D_C44_neg) / double(atoms_p.size());
 
-    double d2_E_B = (E_B_pos - 2 * E_coh + E_B_neg) / alpha_2;
-    double d2_E_C11 = (E_C11_pos - 2 * E_coh + E_C11_neg) / alpha_2;
-    double d2_E_C12 = (E_C12_pos - 2 * E_coh + E_C12_neg) / alpha_2;
-    double d2_E_C44 = (E_C44_pos - 2 * E_coh + E_C44_neg) / alpha_2;
+    double d2_E_B = (E_B_pos - 2 * E + E_B_neg) / alpha_2;
+    double d2_E_C11 = (E_C11_pos - 2 * E + E_C11_neg) / alpha_2;
+    double d2_E_C12 = (E_C12_pos - 2 * E + E_C12_neg) / alpha_2;
+    double d2_E_C44 = (E_C44_pos - 2 * E + E_C44_neg) / alpha_2;
 
     B = 4 * d2_E_B * conv_coefficient / (9.0 * v0);
     C11 = (d2_E_C11 + d2_E_C12) * conv_coefficient / v0;
@@ -150,16 +209,19 @@ void calculate_characteristics(double a0_param, double E_coh, double &B, double 
     C44 = d2_E_C44 * conv_coefficient / v0;
 }
 
-double error(Vector a, double E_coh_target, double &B_target, double &C11_target, double &C12_target, double &C44_target) {
+
+// ---- Функции вычисления ошибок ----
+
+double error_BB(Vector a, double E_coh_target, double &B_target, double &C11_target, double &C12_target, double &C44_target) {
     vector<Atom> atoms;
 
-    init_heliocentric_lattice(atoms, "Ni", a.vec[6]);
+    init_heliocentric_lattice(atoms, a.vec[6]);
     update_parameters(a.vec);
 
     double E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual;
 
     // Считаем энергию, которую имеем на данный момент
-    E_coh_actual = calculate_energy(atoms, a.vec[6], MATR) / double(atoms.size());
+    E_coh_actual = calculate_full_energy(atoms, a.vec[6], MATR) / double(atoms.size());
 
     // Находим характеристики, которые имеем на данный момент
     calculate_characteristics(a.vec[6], E_coh_actual, B_actual, C11_actual, C12_actual, C44_actual);
@@ -174,8 +236,24 @@ double error(Vector a, double E_coh_target, double &B_target, double &C11_target
     return error;
 }
 
+double error_AB(Vector a) {
+    vector<Atom> atoms;
 
-multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11, double &c12, double &c44) {
+    init_heliocentric_lattice(atoms, a.vec[6]);
+    update_parameters(a.vec);
+
+    double E_sol_actual = calculate_sol_energy(atoms, a.vec[6], MATR);
+
+    // Считаем ошибку как сумму квадратов отклонений
+    double error = pow(E_sol_actual - E_sol_true, 2);
+
+    return error;
+}
+
+
+// ---- Метод оптимизации ----
+
+multimap<double, Vector> nelder_mead_method(double E, double &B, double &c11, double &c12, double &c44, char type='1') {
     multimap<double, Vector> simplex;
     double f_h, f_g, f_l;
     Vector x_h, x_l;
@@ -188,10 +266,20 @@ multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11
                 i = rand() % 10000 / 1000.0;
             }
         }
-        simplex.emplace(error(tmp, E_coh, B, c11, c12, c44), tmp);
+        switch (type)
+        {
+            case '1':
+                simplex.emplace(error_BB(tmp, E, B, c11, c12, c44), tmp);
+                break;
+            case '2':
+                simplex.emplace(error_AB(tmp), tmp);
+                break;
+            default:
+                break;
+        }
     }
 
-    while (simplex.begin()->first > 10e-10) {  // Проверка сходимости. Смотрим на падение дисперсии ниже некоторого порога
+    while (simplex.begin()->first > 10e-10) {  // Проверка сходимости. Смотрим на падение ниже некоторого порога
         f_h = simplex.rbegin()->first;  // Наибольшее значение целевой функции
         f_g = (++simplex.rbegin())->first;  // Второе по величине значение целевой функции
         f_l = simplex.begin()->first;  // Наименьшее значение целевой функции
@@ -209,12 +297,31 @@ multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11
 
         // Отразим точку x_h относительно точки x_c с коэффициентом alpha
         Vector x_r = (x_c * (1 + alpha_coefficient) - x_h * alpha_coefficient).strict();
-        double f_r = error(x_r, E_coh, B, c11, c12, c44);  // Значение ЦФ в точке x_r
+        double f_r;  // Значение ЦФ в точке x_r
+        switch (type)
+        {
+            case '1':
+                f_r = error_BB(x_r, E, B, c11, c12, c44);
+                break;
+            case '2':
+                f_r = error_AB(x_r);
+                break;
+        }
 
         if (f_r < f_l) {
             // Направление выбрано удачно, пробуем увеличить шаг
             Vector x_e = (x_c * (1 - gamma_coefficient) + x_r * gamma_coefficient).strict();
-            double f_e = error(x_e, E_coh, B, c11, c12, c44);
+
+            double f_e;
+            switch (type)
+            {
+                case '1':
+                    f_e = error_BB(x_e, E, B, c11, c12, c44);
+                    break;
+                case '2':
+                    f_e = error_AB(x_e);
+                    break;
+            }
 
             simplex.erase(--simplex.end());
             if (f_e < f_r) {
@@ -233,7 +340,18 @@ multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11
             simplex.insert({f_r, x_r});
 
             Vector x_s = (x_c * (1 - beta_coefficient) + x_h * beta_coefficient).strict();
-            double f_s = error(x_s, E_coh, B, c11, c12, c44);
+            double f_s;
+
+            switch (type)
+            {
+                case '1':
+                    f_s = error_BB(x_s, E, B, c11, c12, c44);
+                    break;
+                case '2':
+                    f_s = error_AB(x_s);
+                    break;
+            }
+
             if (f_s < f_h) {
                 // Заменяем вершину x_h точкой x_s
                 simplex.erase(--simplex.end());
@@ -245,13 +363,34 @@ multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11
 
                 for (auto &x_i: tmp) {
                     Vector new_vec = x_l + (x_i.second - x_l) * sigma_coefficient;
-                    simplex.insert({error(new_vec, E_coh, B, c11, c12, c44), new_vec});
+
+                    switch (type)
+                    {
+                        case '1':
+                            simplex.insert({error_BB(new_vec, E, B, c11, c12, c44), new_vec});
+                            break;
+                        case '2':
+                            simplex.insert({error_AB(new_vec), new_vec});
+                            break;
+                    }
+
                 }
             }
         } else {
             // Новая точка не улучшает ответ, проведем операцию сжатия
             Vector x_s = x_c * (1 - beta_coefficient) + x_h * beta_coefficient;
-            double f_s = error(x_s, E_coh, B, c11, c12, c44);
+            double f_s;
+
+            switch (type)
+            {
+                case '1':
+                    f_s = error_BB(x_s, E, B, c11, c12, c44);
+                    break;
+                case '2':
+                    f_s = error_AB(x_s);
+                    break;
+            }
+
             if (f_s < f_h) {
                 // Заменяем вершину x_h точкой x_s
                 simplex.erase(--simplex.end());
@@ -263,7 +402,17 @@ multimap<double, Vector> nelder_mead_method(double E_coh, double &B, double &c11
 
                 for (auto &x_i: tmp) {
                     Vector new_vec = x_l + (x_i.second - x_l) * sigma_coefficient;
-                    simplex.insert({error(new_vec, E_coh, B, c11, c12, c44), new_vec});
+
+                    switch (type)
+                    {
+                        case '1':
+                            simplex.insert({error_BB(new_vec, E, B, c11, c12, c44), new_vec});
+                            break;
+                        case '2':
+                            simplex.insert({error_AB(new_vec), new_vec});
+                            break;
+                    }
+
                 }
             }
         }

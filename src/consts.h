@@ -20,6 +20,10 @@ const double  MATR[9] = {1, 0, 0,
 
 double A1 = 0, A0 = 0.1028, ksi = 1.178, p = 10.928, q = 3.139, r0 = 2.889, a_0 = 4.085;
 
+const double E_sol_true = 0.539, E_in_dim_true = 0.06, E_on_dim_true = -0.56, E_coh_true = -2.96;
+const double B_true = 1.08, C11_true = 1.32, C12_true = 0.97, C44_true = 0.51;
+
+
 void update_parameters(const double new_parameters[7]) {
     A1 = new_parameters[0];
     A0 = new_parameters[1];
@@ -31,6 +35,7 @@ void update_parameters(const double new_parameters[7]) {
 }
 
 void printParams(double p_[7]) {
+    cout << "Подобранные параметры потенциала: ";
     cout << "A1: " << p_[0] << ' ';
     cout << "A0: " << p_[1] << ' ';
     cout << "ksi: " << p_[2] << ' ';
